@@ -12,9 +12,10 @@ from __future__ import print_function
 import tensorflow as tf
 
 # Import MNIST data
-from tensorflow.examples.tutorials.mnist import input_data
+# from tensorflow.examples.tutorials.mnist import input_data
+from audio_reader import *
 
-mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+# mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 
 # Parameters
 learning_rate = 0.001
@@ -28,8 +29,8 @@ n_classes = 2  # MNIST total classes (0-9 digits)
 dropout = 0.75  # Dropout, probability to keep units
 
 # tf Graph input
-x = tf.placeholder(tf.float32, [None, n_input])
-y = tf.placeholder(tf.float32, [None, n_classes])
+x = tf.placeholder(tf.float32, [n_input])
+y = tf.placeholder(tf.float32, [n_classes])
 keep_prob = tf.placeholder(tf.float32)  # dropout (keep probability)
 
 
@@ -74,6 +75,7 @@ def conv_net(x, weights, biases, dropout):
     out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
     return out
 
+
 # Store layers weight & bias
 weights = {
     # 5 conv, 1 input, 32 outputs
@@ -81,7 +83,7 @@ weights = {
     # 5x5 conv, 32 inputs, 64 outputs
     'wc2': tf.Variable(tf.random_normal([10, 32, 64])),
     # fully connected, 7*7*64 inputs, 1024 outputs
-    'wd1': tf.Variable(tf.random_normal([17 * 17 * 64, 1024])),
+    'wd1': tf.Variable(tf.random_normal([10 * 10 * 64, 1024])),
     # 1024 inputs, 10 outputs (class prediction)
     'out': tf.Variable(tf.random_normal([1024, n_classes]))
 }
@@ -106,27 +108,31 @@ accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
 # Initializing the variables
 init = tf.initialize_all_variables()
-
+audio_reader = AudioReader()
 # Launch the graph
 with tf.Session() as sess:
     sess.run(init)
     step = 1
     # Keep training until reach max iterations
-    while step * batch_size < training_iters:
-        batch_x, batch_y = mnist.train.next_batch(batch_size)
-        print(batch_x.shape, batch_y[0])
-        # Run optimization op (backprop)
-        sess.run(optimizer, feed_dict={x: batch_x, y: batch_y,
-                                       keep_prob: dropout})
-        if step % display_step == 0:
-            # Calculate batch loss and accuracy
-            loss, acc = sess.run([cost, accuracy], feed_dict={x: batch_x,
-                                                              y: batch_y,
-                                                              keep_prob: 1.})
-            print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
-                  "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                  "{:.5f}".format(acc))
-        step += 1
+    while step < training_iters:
+        audio_sample, audio_label = audio_reader.next_audio_sample()
+        print(len(audio_sample), audio_label)
+        audio_sample_begin = 0
+        while audio_sample_begin + n_input < len(audio_sample):
+            sample = audio_sample[audio_sample_begin:audio_sample_begin + n_input]
+            # Run optimization op (backprop)
+            sess.run(optimizer, feed_dict={x: sample, y: audio_label,
+                                           keep_prob: dropout})
+            if step % display_step == 0:
+                # Calculate batch loss and accuracy
+                loss, acc = sess.run([cost, accuracy], feed_dict={x: sample,
+                                                                  y: audio_label,
+                                                                  keep_prob: 1.})
+                print("Iter " + str(step) + ", Minibatch Loss= " + \
+                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                      "{:.5f}".format(acc))
+            audio_sample_begin += n_input
+            step += 1
     print("Optimization Finished!")
 
     # Calculate accuracy for 256 mnist test images
