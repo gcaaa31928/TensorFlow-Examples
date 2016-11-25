@@ -24,7 +24,7 @@ batch_size = 128
 display_step = 10
 
 # Network Parameters
-n_input = 4000  # MNIST data input (img shape: 28*28)
+n_input = 1000  # MNIST data input (img shape: 28*28)
 n_classes = 2  # MNIST total classes (0-9 digits)
 dropout = 0.75  # Dropout, probability to keep units
 
@@ -70,7 +70,7 @@ def conv_net(x, weights, biases, dropout):
     fc1 = tf.nn.relu(fc1)
     # Apply Dropout
     fc1 = tf.nn.dropout(fc1, dropout)
-
+    print(fc1)
     # Output, class prediction
     out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
     return out
@@ -83,7 +83,7 @@ weights = {
     # 5x5 conv, 32 inputs, 64 outputs
     'wc2': tf.Variable(tf.random_normal([10, 32, 64])),
     # fully connected, 7*7*64 inputs, 1024 outputs
-    'wd1': tf.Variable(tf.random_normal([10 * 10 * 64, 1024])),
+    'wd1': tf.Variable(tf.random_normal([1000 * 64, 1024])),
     # 1024 inputs, 10 outputs (class prediction)
     'out': tf.Variable(tf.random_normal([1024, n_classes]))
 }
@@ -97,7 +97,6 @@ biases = {
 
 # Construct model
 pred = conv_net(x, weights, biases, keep_prob)
-
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
@@ -115,28 +114,29 @@ with tf.Session() as sess:
     step = 1
     # Keep training until reach max iterations
     while step < training_iters:
-        audio_sample, audio_label = audio_reader.next_audio_sample()
-        print(len(audio_sample), audio_label)
-        audio_sample_begin = 0
-        while audio_sample_begin + n_input < len(audio_sample):
-            sample = audio_sample[audio_sample_begin:audio_sample_begin + n_input]
-            # Run optimization op (backprop)
-            sess.run(optimizer, feed_dict={x: sample, y: audio_label,
-                                           keep_prob: dropout})
-            if step % display_step == 0:
-                # Calculate batch loss and accuracy
-                loss, acc = sess.run([cost, accuracy], feed_dict={x: sample,
-                                                                  y: audio_label,
-                                                                  keep_prob: 1.})
-                print("Iter " + str(step) + ", Minibatch Loss= " + \
-                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                      "{:.5f}".format(acc))
-            audio_sample_begin += n_input
-            step += 1
+        audio_sample, audio_label = audio_reader.next_batch(batch_size)
+        label = [0, 1] if audio_label == 1 else [1, 0]
+        print(audio_sample, label)
+
+        #
+        # audio_sample_begin = 0
+        # while audio_sample_begin + n_input < len(audio_sample):
+        #     sample = audio_sample[audio_sample_begin:audio_sample_begin + n_input]
+        # Run optimization op (backprop)
+        sess.run(optimizer, feed_dict={x: audio_sample, y: label,
+                                       keep_prob: dropout})
+
+        step += 1
+        # if step % display_step == 0:
+        #     Calculate batch loss and accuracy
+            # print(len(sample), len(label))
+            # loss, acc = sess.run([cost, accuracy], feed_dict={x: sample,
+            #                                                   y: label,
+            #                                                   keep_prob: 1.})
+            # print("Iter " + str(step) + ", Minibatch Loss= " + \
+            #       "{:.6f}".format(loss) + ", Training Accuracy= " + \
+            #       "{:.5f}".format(acc))
+        # audio_sample_begin += n_input
+        # step += 1
     print("Optimization Finished!")
 
-    # Calculate accuracy for 256 mnist test images
-    print("Testing Accuracy:", \
-          sess.run(accuracy, feed_dict={x: mnist.test.images[:256],
-                                        y: mnist.test.labels[:256],
-                                        keep_prob: 1.}))
